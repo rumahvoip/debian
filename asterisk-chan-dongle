@@ -1,0 +1,101 @@
+# instalasi asterisk 11 + freepbx 2.11 + asterisk-chan-dongle di debian wheezy
+# gini cara nginstal asterisk 11, asterisk-chan-dongle, freepbx 2.11 di Debian Wheezy
+# instal dependensi
+apt-get install -y sudo
+apt-get update && apt-get upgrade -y
+apt-get install -y screen iftop iperf pptp-linux build-essential linux-headers-`uname -r` openssh-server apache2 mysql-server mysql-client libgnutls* bison flex php5 php5-curl php5-cli php5-mysql php-pear php-db php5-gd curl sox libncurses5-dev libssl-dev libmysqlclient-dev mpg123 libxml2-dev libnewt-dev sqlite3 libsqlite3-dev pkg-config automake libtool autoconf git subversion
+
+#instal database
+pear uninstall db
+pear install db-1.7.14
+
+#instal dependensi untuk fitur google voice
+cd /usr/src
+wget http://sg.greentux.us.to/iksemel-1.4.tar.gz
+tar xf iksemel-1.4.tar.gz
+cd iksemel-1.4
+./configure
+make
+make install
+
+#unduh paket instalasi asterisk 11 dan dependensinya
+cd /usr/src
+wget http://sg.greentux.us.to/dahdi-linux-complete-current.tar.gz
+wget http://sg.greentux.us.to/libpri-1.4-current.tar.gz
+wget http://sg.greentux.us.to/asterisk-11-current.tar.gz
+
+#instal dahdi-linux
+tar xvfz dahdi-linux-complete-current.tar.gz
+cd dahdi*
+make all
+make install
+make config
+
+#instal libpri
+cd /usr/src
+tar xvfz libpri-1.4-current.tar.gz
+cd libpri*
+make
+make install
+
+#instal asterisk 11
+cd /usr/src
+tar xvfz asterisk-11-current.tar.gz
+cd asterisk*
+./configure
+contrib/scripts/get_mp3_source.sh
+make menuselect
+make
+make install
+make config
+
+#instal asterisk-extra-sounds-en-gsm
+cd /var/lib/asterisk/sounds
+wget http://sg.greentux.us.to/asterisk-extra-sounds-en-gsm-current.tar.gz
+tar xvfz asterisk-extra-sounds-en-gsm-current.tar.gz
+rm asterisk-extra-sounds-en-gsm-current.tar.gz
+
+#instal modul asterisk-chan-dongle
+cd /usr/src
+wget http://sg.greentux.us.to/asterisk11.zip 
+unzip asterisk11.zip
+cd asterisk-chan-dongle-asterisk11
+aclocal
+autoconf
+automake -a
+./configure
+make
+make install
+cp etc/dongle.conf /etc/asterisk/
+chmod 777 /etc/asterisk/dongle.conf
+
+#instal freepbx 2.11
+cd /usr/src
+wget http://sg.greentux.us.to/freepbx-2.11.0.43.tgz
+tar vxfz freepbx-2.11.0.43.tgz
+cd freepb*
+adduser asterisk --disabled-password --gecos "Asterisk User"
+chown asterisk. /var/run/asterisk
+chown -R asterisk. /etc/asterisk
+chown -R asterisk. /var/{lib,log,spool}/asterisk
+chown -R asterisk. /usr/lib/asterisk
+mkdir /var/www/html
+chown -R asterisk. /var/www/
+sed -i 's/\(^upload_max_filesize = \).*/\120M/' /etc/php5/apache2/php.ini
+cp /etc/apache2/apache2.conf /etc/apache2/apache2.conf_orig
+sed -i 's/^\(User\|Group\).*/\1 asterisk/' /etc/apache2/apache2.conf
+service apache2 restart
+export ASTERISK_DB_PW=amp109
+mysqladmin -u root create asterisk -p
+mysqladmin -u root create asteriskcdrdb -p
+mysql -u root asterisk < SQL/newinstall.sql -p
+mysql -u root asteriskcdrdb < SQL/cdr_mysql_table.sql -p
+mysql -u root -e "GRANT ALL PRIVILEGES ON asterisk.* TO asteriskuser@localhost IDENTIFIED BY '${ASTERISK_DB_PW}';" -p
+mysql -u root -e "GRANT ALL PRIVILEGES ON asteriskcdrdb.* TO asteriskuser@localhost IDENTIFIED BY '${ASTERISK_DB_PW}';" -p
+mysql -u root -e "flush privileges;" -p
+./start_asterisk start
+./install_amp --webroot /var/www
+amportal a ma installall
+amportal a reload
+ln -s /var/lib/asterisk/moh /var/lib/asterisk/mohmp3
+amportal start 
